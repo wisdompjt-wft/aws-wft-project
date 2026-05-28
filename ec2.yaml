@@ -143,7 +143,7 @@ Resources:
         UserData:
           Fn::Base64: !Sub |
             #!/bin/bash
-            yum install -y httpd php php-mbstring php-pdo php-mysqlnd php-json php-gd mariadb105-server
+            yum install -y httpd php php-mbstring php-pdo php-mysqlnd php-json php-gd mariadb105
             wget https://github.com/wisdompjt-wft/aws-wft-project/raw/main/wft.zip
             mv wft.zip /var/www/html/
             cd /var/www/html/
