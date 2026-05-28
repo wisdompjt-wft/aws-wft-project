@@ -1,0 +1,144 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: WhatFood Today Default RDS_Layer Template for the Project
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: Project Name
+    Default: wft
+  RegionName:
+    Type: String
+    Description: Region Name
+    Default: seoul
+    AllowedValues:
+      - seoul
+  DBName:
+    Type: String
+    Description: Database Name
+    Default: wft
+  DBUser:
+    Type: String
+    Description: Database Admin User
+    Default: root
+  DBPassword:
+    Type: String
+    Description: Database Admin Password
+    NoEcho: true
+  DBInstanceClass:
+    Type: String
+    Description: Database Instance Class
+    Default: db.t3.micro
+  AllocatedStorage:
+    Type: Number
+    Description: Allocated Storage Size (GB)
+    Default: 20
+
+Conditions:
+  Seoul: !Equals [!Ref "AWS::Region", ap-northeast-2]
+
+Mappings:
+  CidrMap:
+    ap-northeast-2:
+      PubSn2Cidr: 172.16.2.0/24
+      WebSn3Cidr: 172.16.3.0/24
+      WebSn4Cidr: 172.16.4.0/24
+    ap-northeast-1:
+      WebSn3Cidr: 172.17.3.0/24
+      WebSn4Cidr: 172.17.4.0/24
+
+Resources:
+# DB Parameter Group (SSL 강제 옵션 해제)
+  DBParamGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Condition: Seoul
+    Properties:
+      Family: mariadb11.8    # 사용 중인 11.8 버전에 맞춘 패밀리 이름
+      Description: "Disable secure transport for internal VPC"
+      Parameters:
+        require_secure_transport: 0   # 1(ON)을 0(OFF)으로 변경
+# DB Security Group
+  RdsSg:
+    Type: AWS::EC2::SecurityGroup
+    Condition: Seoul
+    Properties:
+      VpcId: !ImportValue VpcId
+      GroupDescription: !Sub "${AWS::Region} RDS MariaDB Security Group"
+      SecurityGroupIngress:
+        # 서울 VPN Subnet 2 접근 허용
+        - IpProtocol: tcp
+          FromPort: 2102
+          ToPort: 2102
+          CidrIp: !FindInMap [CidrMap, ap-northeast-2, PubSn2Cidr]
+          Description: Allow MariaDB access from OpenVPN Subnet (PubSn2)
+        # 서울 프론트엔드 Web Subnet 3 접근 허용
+        - IpProtocol: tcp
+          FromPort: 2102
+          ToPort: 2102
+          CidrIp: !FindInMap [CidrMap, ap-northeast-2, WebSn3Cidr]
+          Description: Allow MariaDB access from Seoul WebSn3
+        # 서울 프론트엔드 Web Subnet 4 접근 허용
+        - IpProtocol: tcp
+          FromPort: 2102
+          ToPort: 2102
+          CidrIp: !FindInMap [CidrMap, ap-northeast-2, WebSn4Cidr]
+          Description: Allow MariaDB access from Seoul WebSn4
+        # 도쿄 프론트엔드 Web Subnet 3 접근 허용 (VPC Peering 통신용)
+        - IpProtocol: tcp
+          FromPort: 2102
+          ToPort: 2102
+          CidrIp: !FindInMap [CidrMap, ap-northeast-1, WebSn3Cidr]
+          Description: Allow MariaDB access from Tokyo WebSn3 (via Peering)
+        # 도쿄 프론트엔드 Web Subnet 4 접근 허용 (VPC Peering 통신용)
+        - IpProtocol: tcp
+          FromPort: 2102
+          ToPort: 2102
+          CidrIp: !FindInMap [CidrMap, ap-northeast-1, WebSn4Cidr]
+          Description: Allow MariaDB access from Tokyo WebSn4 (via Peering)
+      Tags:
+        - Key: Name
+          Value: !Sub "${RegionName}-${ProjectName}-rds-sg"
+
+# DB Subnet Group
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Condition: Seoul
+    Properties:
+      DBSubnetGroupDescription: Subnet group for WhatFood Today RDS
+      SubnetIds:
+        - !ImportValue RdsSn5Id
+        - !ImportValue RdsSn6Id
+      Tags:
+        - Key: Name
+          Value: !Sub "${RegionName}-${ProjectName}-rds-sub-group"
+
+# RDS MariaDB Instance (Multi-AZ 배치)
+  DBInstance:
+    Type: AWS::RDS::DBInstance
+    Condition: Seoul
+    Properties:
+      DBName: !Ref DBName
+      Engine: mariadb
+      EngineVersion: "11.8.3"  # AWS RDS에서 안정적으로 지원하는 고성능 LTS 버전
+      Port: "2102"
+      DBParameterGroupName: !Ref DBParamGroup
+      MasterUsername: !Ref DBUser
+      MasterUserPassword: !Ref DBPassword
+      DBInstanceClass: !Ref DBInstanceClass
+      AllocatedStorage: !Ref AllocatedStorage
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - !Ref RdsSg
+      #MultiAZ: true          # 구성도의 Master / Standby 구조를 위한 활성화
+      Tags:
+        - Key: Name
+          Value: !Sub "${RegionName}-${ProjectName}-rds"
+
+Outputs:
+  RdsEndPoint:
+    Description: The RDS Endpoint Address
+    Condition: Seoul
+    Value: !GetAtt DBInstance.Endpoint.Address
+    Export:
+      Name: RdsEndPoint
+...

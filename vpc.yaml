@@ -1,0 +1,365 @@
+---
+AWSTemplateFormatVersion: 2010-09-09
+Description: WhatFood Today Default VPC_Layer Template for the Project
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: Project Name
+    Default: wft
+  RegionName:
+    Type: String
+    Description: Region Name
+    AllowedValues:
+      - seoul
+      - tokyo
+  PublicKeyMaterial:
+    Type: String
+    Description: Key Pair - Public Key Material
+  AdminIp:
+    Type: String
+    Description: Admin Public IP Address
+    Default: 0.0.0.0/0
+
+Conditions:
+  Seoul: !Equals [!Ref "AWS::Region", ap-northeast-2]
+  Tokyo: !Equals [!Ref "AWS::Region", ap-northeast-1]
+
+Mappings:
+  CidrMap:
+    ap-northeast-2:
+      VpcCidr: 172.16.0.0/16
+      PubSn1Cidr: 172.16.1.0/24
+      PubSn2Cidr: 172.16.2.0/24
+      WebSn3Cidr: 172.16.3.0/24
+      WebSn4Cidr: 172.16.4.0/24
+      RdsSn5Cidr: 172.16.5.0/24
+      RdsSn6Cidr: 172.16.6.0/24
+    ap-northeast-1:
+      VpcCidr: 172.17.0.0/16
+      PubSn1Cidr: 172.17.1.0/24
+      PubSn2Cidr: 172.17.2.0/24
+      WebSn3Cidr: 172.17.3.0/24
+      WebSn4Cidr: 172.17.4.0/24
+  AmiMap:
+    ap-northeast-2:
+      Ami: ami-010502f62836f0c67
+    ap-northeast-1:
+      Ami: ami-0c036b62d1a414d7f
+    openvpn:
+      Ami: ami-051d52e500c684ec4
+
+Resources:
+# VPC & Internet Gateway
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !FindInMap [CidrMap, !Ref "AWS::Region", VpcCidr]
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${RegionName}-${ProjectName}-vpc"
+
+  Igw:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "${RegionName}-${ProjectName}-igw"
+
+  IgwAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref Igw
+      VpcId: !Ref Vpc
+
+# Ingress Public Subnet & Route Table
+  PubSn1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: !FindInMap [CidrMap, !Ref "AWS::Region", PubSn1Cidr]
+      Tags:
+        - Key: Name
+          Value: !Sub "${RegionName}-pub-sn1"
+
+  PubSn2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [2, !GetAZs '']
+      CidrBlock: !FindInMap [CidrMap, !Ref "AWS::Region", PubSn2Cidr]
+      Tags:
+        - Key: Name
+          Value: !Sub "${RegionName}-pub-sn2"
+
+  PubRt12:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: !Sub "${RegionName}-${ProjectName}-pub-rt12"
+
+  PubRt12Sn1Association:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PubRt12
+      SubnetId: !Ref PubSn1
+
+  PubRt12Sn2Association:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PubRt12
+      SubnetId: !Ref PubSn2
+
+  PubRt12DefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: IgwAttachment
+    Properties:
+      RouteTableId: !Ref PubRt12
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref Igw
+
+# Web Private Subnet & Route Table
+  WebSn3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: !FindInMap [CidrMap, !Ref "AWS::Region", WebSn3Cidr]
+      Tags:
+        - Key: Name
+          Value: !Sub "${RegionName}-pri-sn3"
+
+  WebSn4:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [2, !GetAZs '']
+      CidrBlock: !FindInMap [CidrMap, !Ref "AWS::Region", WebSn4Cidr]
+      Tags:
+        - Key: Name
+          Value: !Sub "${RegionName}-pri-sn4"
+
+  WebRt34:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: !Sub "${RegionName}-${ProjectName}-pri-rt34"
+
+  WebRt34Sn3Association:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref WebRt34
+      SubnetId: !Ref WebSn3
+
+  WebRt34Sn4Association:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref WebRt34
+      SubnetId: !Ref WebSn4
+
+  WebRt34DefaultRouteNatGateway:
+    Type: AWS::EC2::Route
+    DependsOn: NatGateway
+    Properties:
+      RouteTableId: !Ref WebRt34
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+# DB Private Subnet & Route Table
+  RdsSn5:
+    Type: AWS::EC2::Subnet
+    Condition: Seoul
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: !FindInMap [CidrMap, !Ref "AWS::Region", RdsSn5Cidr]
+      Tags:
+        - Key: Name
+          Value: !Sub "${RegionName}-rds-sn5"
+
+  RdsSn6:
+    Type: AWS::EC2::Subnet
+    Condition: Seoul
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [2, !GetAZs '']
+      CidrBlock: !FindInMap [CidrMap, !Ref "AWS::Region", RdsSn6Cidr]
+      Tags:
+        - Key: Name
+          Value: !Sub "${RegionName}-rds-sn6"
+
+  RdsRt56:
+    Type: AWS::EC2::RouteTable
+    Condition: Seoul
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: !Sub "${RegionName}-${ProjectName}-rds-rt56"
+
+  RdsRt56Sn5Association:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: Seoul
+    Properties:
+      RouteTableId: !Ref RdsRt56
+      SubnetId: !Ref RdsSn5
+
+  RdsRt56Sn6Association:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: Seoul
+    Properties:
+      RouteTableId: !Ref RdsRt56
+      SubnetId: !Ref RdsSn6
+
+# NAT Gateway & EIP
+  NatEip:
+    Type: AWS::EC2::EIP
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "${RegionName}-${ProjectName}-nat-eip"
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    DependsOn: NatEip
+    Properties:
+      AllocationId: !GetAtt NatEip.AllocationId
+      SubnetId: !Ref PubSn1
+      Tags:
+        - Key: Name
+          Value: !Sub "${RegionName}-${ProjectName}-nat-gw"
+
+# Key Pair
+  KeyPair:
+    Type: AWS::EC2::KeyPair
+    Properties:
+      KeyName: !Sub "${RegionName}-${ProjectName}-key"
+      PublicKeyMaterial: !Ref PublicKeyMaterial
+
+# OpenVPN & Security Group & EIP
+  OpenvpnSg:
+    Type: AWS::EC2::SecurityGroup
+    Condition: Seoul
+    Properties:
+      GroupDescription: !Sub "${AWS::Region} OpenVPN Security Group"
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref AdminIp
+          Description: Allow TCP 22 for Admin SSH access
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: Allow TCP 443 for Admin HTTPS access
+        - IpProtocol: tcp
+          FromPort: 943
+          ToPort: 943
+          CidrIp: 0.0.0.0/0
+          Description: Allow TCP 943 for Admin web management
+        - IpProtocol: tcp
+          FromPort: 945
+          ToPort: 945
+          CidrIp: 0.0.0.0/0
+          Description: Allow TCP 945 for internal communication
+        - IpProtocol: udp
+          FromPort: 1194
+          ToPort: 1194
+          CidrIp: 0.0.0.0/0
+          Description: Allow UDP 1194 for VPN data
+        - IpProtocol: icmp
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 10.0.0.0/8
+          Description: Allow ICMP for internal communication test
+      Tags:
+        - Key: Name
+          Value: !Sub "${RegionName}-${ProjectName}-openvpn-sg"
+
+  Openvpn:
+    Type: AWS::EC2::Instance
+    Condition: Seoul
+    Properties:
+      ImageId: !FindInMap [AmiMap, openvpn, Ami]
+      InstanceType: t3.micro
+      KeyName: !Ref KeyPair
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          PrivateIpAddress: !Join
+            - "."
+            - - !Select [0, !Split [".", !FindInMap [CidrMap, !Ref "AWS::Region", PubSn2Cidr]]]
+              - !Select [1, !Split [".", !FindInMap [CidrMap, !Ref "AWS::Region", PubSn2Cidr]]]
+              - !Select [2, !Split [".", !FindInMap [CidrMap, !Ref "AWS::Region", PubSn2Cidr]]]
+              - "100"
+          DeviceIndex: 0
+          GroupSet:
+            - !Ref OpenvpnSg
+          SubnetId: !Ref PubSn2
+      Tags:
+        - Key : Name
+          Value : !Sub "${RegionName}-${ProjectName}-openvpn"
+
+  OpenvpnEip:
+    Type: AWS::EC2::EIP
+    Condition: Seoul
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "${RegionName}-${ProjectName}-eip-openvpn"
+
+  OpenvpnEipAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Condition: Seoul
+    Properties:
+      AllocationId: !GetAtt OpenvpnEip.AllocationId
+      InstanceId: !Ref Openvpn
+
+# OutPuts
+Outputs:
+  VpcId:
+    Description: The VPC ID
+    Value: !Ref Vpc
+    Export:
+      Name: VpcId
+  PubSn1Id:
+    Description: The Public Subnet1 ID
+    Value: !Ref PubSn1
+    Export:
+      Name: PubSn1Id
+  PubSn2Id:
+    Description: The Public Subnet2 ID
+    Value: !Ref PubSn2
+    Export:
+      Name: PubSn2Id
+  WebSn3Id:
+    Description: The Private Subnet3 ID
+    Value: !Ref WebSn3
+    Export:
+      Name: WebSn3Id
+  WebSn4Id:
+    Description: The Private Subnet4 ID
+    Value: !Ref WebSn4
+    Export:
+      Name: WebSn4Id
+  RdsSn5Id:
+    Description: The RDS Subnet5 ID
+    Condition: Seoul
+    Value: !Ref RdsSn5
+    Export:
+      Name: RdsSn5Id
+  RdsSn6Id:
+    Description: The RDS Subnet6 ID
+    Condition: Seoul
+    Value: !Ref RdsSn6
+    Export:
+      Name: RdsSn6Id
+...
