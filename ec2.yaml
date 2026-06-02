@@ -10,6 +10,9 @@ Parameters:
   RdsDns:
     Type: String
     Description: RDS Endpoint
+  RdsRegion:
+    Type: String
+    Default: ap-northeast-2
   RegionName:
     Type: String
     Description: Region Name
@@ -35,9 +38,9 @@ Mappings:
       WebSn4Cidr: 172.17.4.0/24
   AmiMap:
     ap-northeast-2:
-      Ami: ami-010502f62836f0c67
+      Ami: ami-0aef7d1237f8a3805
     ap-northeast-1:
-      Ami: ami-0c036b62d1a414d7f
+      Ami: ami-0b53194d9d4d5cfea
 
 Resources:
 # Web Application Load Balancer & Security Group
@@ -129,6 +132,35 @@ Resources:
         - Key : Name
           Value : !Sub "${RegionName}-${ProjectName}-web-sg"
 
+  WebRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: SSMReadPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource:
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/rds-pass
+
+  WebInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref WebRole
+
   LaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
     Properties:
@@ -137,20 +169,29 @@ Resources:
       LaunchTemplateData:
         ImageId: !FindInMap [AmiMap, !Ref "AWS::Region", Ami]
         InstanceType: t3.micro
+
+        IamInstanceProfile:
+          Name: !Ref WebInstanceProfile
+
         KeyName: !Sub "${RegionName}-${ProjectName}-key"
         SecurityGroupIds:
           - !Ref WebSg
         UserData:
           Fn::Base64: !Sub |
             #!/bin/bash
-            yum install -y httpd php php-mbstring php-pdo php-mysqlnd php-json php-gd mariadb105
+            dnf install -y httpd php php-mbstring php-pdo php-mysqlnd php-json php-gd mariadb105 awscli unzip
             wget https://github.com/wisdompjt-wft/aws-wft-project/raw/main/wft.zip
             mv wft.zip /var/www/html/
             cd /var/www/html/
             unzip wft.zip
+            DB_PASS=$(aws ssm get-parameter \
+            --name rds-pass \
+            --query Parameter.Value \
+            --output text \
+            --region ${RdsRegion})
             sed -i "s/DirectoryIndex index.html/DirectoryIndex index.php index.html/g" /etc/httpd/conf/httpd.conf
             sed -i "s/127.0.0.1/${RdsDns}/g" db.php
-            sed -i "s/= '1234';/= 'whatfood1234';/g" db.php
+            sed -i "s/= '1234';/= '$DB_PASS';/g" db.php
             systemctl start httpd
             systemctl enable httpd
 # sed -i "s/localhost/${RdsDns}/g" config.php
