@@ -7,7 +7,7 @@
 > **프로젝트 기간:** 2026.06.08 ~ 2026.06.12 / **난이도:** ★★★☆☆
 
 ## 프로젝트 구성도
-<img width="1583" height="1468" alt="AWS구성도_완성본" src="https://github.com/user-attachments/assets/91ed7c5b-6611-4812-9d0d-e976c5070878" />
+<img width="1583" height="1608" alt="AWS구성도_최종완성본" src="https://github.com/user-attachments/assets/f3eadd54-4d51-4cee-a048-f9c2ca70cc12" />
 
 ## 프로젝트 목표:
 1. CloudFormation 템플릿을 사용한 AWS 기본 인프라 구축
