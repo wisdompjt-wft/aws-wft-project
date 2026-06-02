@@ -119,7 +119,7 @@ Resources:
       Port: "2102"
       DBParameterGroupName: !Ref DBParamGroup
       MasterUsername: !Ref DBUser
-      MasterUserPassword: '{{resolve:ssm:rds-pass}}'
+      MasterUserPassword: '{{resolve:ssm:db_password}}'
       DBInstanceClass: !Ref DBInstanceClass
       AllocatedStorage: !Ref AllocatedStorage
       DBSubnetGroupName: !Ref DBSubnetGroup
@@ -129,6 +129,14 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub "${RegionName}-${ProjectName}-rds"
+
+  RdsEndpointParameter:
+    Type: AWS::SSM::Parameter
+    Condition: Seoul
+    Properties:
+      Name: /wft/rds/endpoint
+      Type: String
+      Value: !GetAtt DBInstance.Endpoint.Address
 
 Outputs:
   RdsEndPoint:
