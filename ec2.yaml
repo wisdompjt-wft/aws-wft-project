@@ -150,8 +150,8 @@ Resources:
                 Action:
                   - ssm:GetParameter
                 Resource:
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/db_password
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/wft/rds/endpoint
+                  - !Sub arn:aws:ssm:${RdsRegion}:${AWS::AccountId}:parameter/db_password
+                  - !Sub arn:aws:ssm:${RdsRegion}:${AWS::AccountId}:parameter/wft/rds/endpoint
 
   WebInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -197,6 +197,15 @@ Resources:
             sed -i "s/= '1234';/= '$DB_PASS';/g" db.php
             systemctl start httpd
             systemctl enable httpd
+            # ==========================================
+            # DB 초기화 자동 실행 및 스크립트 삭제
+            # ==========================================
+            # 1. 터미널 명령어로 PHP 파일 실행 (DB 연결 및 테이블 생성)
+            php /var/www/html/init_db.php
+            
+            # 2. 실행 완료 후 보안을 위해 즉시 삭제
+            rm -f /var/www/html/init_db.php
+            # ==========================================
 # sed -i "s/localhost/${RdsDns}/g" config.php
 
 # Auto Scaling Group & Scaling Policy
