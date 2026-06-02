@@ -21,10 +21,6 @@ Parameters:
     Type: String
     Description: Database Admin User
     Default: root
-  DBPassword:
-    Type: String
-    Description: Database Admin Password
-    NoEcho: true
   DBInstanceClass:
     Type: String
     Description: Database Instance Class
@@ -123,7 +119,7 @@ Resources:
       Port: "2102"
       DBParameterGroupName: !Ref DBParamGroup
       MasterUsername: !Ref DBUser
-      MasterUserPassword: !Ref DBPassword
+      MasterUserPassword: '{{resolve:ssm:rds-pass}}'
       DBInstanceClass: !Ref DBInstanceClass
       AllocatedStorage: !Ref AllocatedStorage
       DBSubnetGroupName: !Ref DBSubnetGroup
