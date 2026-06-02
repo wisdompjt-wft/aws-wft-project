@@ -42,10 +42,6 @@ Mappings:
       WebSn3Cidr: 172.17.3.0/24
       WebSn4Cidr: 172.17.4.0/24
   AmiMap:
-    ap-northeast-2:
-      Ami: ami-010502f62836f0c67
-    ap-northeast-1:
-      Ami: ami-0c036b62d1a414d7f
     openvpn:
       Ami: ami-051d52e500c684ec4
 
