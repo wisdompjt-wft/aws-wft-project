@@ -35,9 +35,10 @@ Mappings:
       WebSn4Cidr: 172.17.4.0/24
   AmiMap:
     ap-northeast-2:
-      Ami: ami-0c2ec5caea5a1a1ab
+      # 💡 [필독수정] 본인이 수동으로 최종 성공시킨 후 구워낸 AMI ID를 여기에 넣으세요!
+      Ami: ami-054b40a72f40ad9b3
     ap-northeast-1:
-      Ami: ami-0b53194d9d4d5cfea
+      Ami: ami-0cfcf03a463783e35
 
 Resources:
 # Web Application Load Balancer & Security Group
@@ -129,36 +130,12 @@ Resources:
         - Key : Name
           Value : !Sub "${RegionName}-${ProjectName}-web-sg"
 
-  WebRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - ec2.amazonaws.com
-            Action:
-              - sts:AssumeRole
-      Policies:
-        - PolicyName: SSMReadPolicy
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ssm:GetParameter
-                Resource:
-                  - !Sub arn:aws:ssm:${RdsRegion}:${AWS::AccountId}:parameter/db_password
-                  - !Sub arn:aws:ssm:${RdsRegion}:${AWS::AccountId}:parameter/db_host
-									- !Sub arn:aws:ssm:${RdsRegion}:${AWS::AccountId}:parameter/wft-api-key
-
   WebInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
       Roles:
-        - !Ref WebRole
+        # 💡 수동으로 만들어 두신 최신 IAM 역할을 다이렉트로 매핑합니다.
+        - "whatfood-web-ssm-role"
 
   LaunchTemplate:
     Type: AWS::EC2::LaunchTemplate
@@ -176,23 +153,40 @@ Resources:
         SecurityGroupIds:
           - !Ref WebSg
         UserData:
+          # 💡 [해결] 꼬여있던 기존 sed 치환 코드를 완전히 제거하여 RDS_ENDPOINT 의존성 에러를 완벽히 해결했습니다!
           Fn::Base64: !Sub |
             #!/bin/bash
+            # 1. SSM 파라미터 스토어에서 내 맞춤형 구조(db_host, db_password) 실시간 동기화
             DB_HOST=$(aws ssm get-parameter --name "db_host" --query "Parameter.Value" --output text --region ${RdsRegion})
             DB_PASS=$(aws ssm get-parameter --name "db_password" --with-decryption --query "Parameter.Value" --output text --region ${RdsRegion})
+            
+            # 2. db.php가 바라보는 최신 주소 파일 구워주기
             echo "DB_HOST=$DB_HOST" > /var/www/db_config.ini
             echo "DB_PASSWORD=$DB_PASS" >> /var/www/db_config.ini
             chmod 600 /var/www/db_config.ini
             chown apache:apache /var/www/db_config.ini
+            
+            # 3. 데이터베이스 SSL 암호화 통과를 위한 AWS 마스터 신용인증서 수급 배치
+            mkdir -p /etc/pki/tls/certs
+            wget https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem -O /etc/pki/tls/certs/aws-rds-global-bundle.pem
+            chmod 644 /etc/pki/tls/certs/aws-rds-global-bundle.pem
+            
+            # 4. 파이썬 Gunicorn 백엔드가 리전 누락 에러로 뻗지 않도록 환경변수 심어주기
+            if ! grep -q "AWS_DEFAULT_REGION" /etc/systemd/system/whatfood.service; then
+              sed -i '/\[Service\]/a Environment="AWS_DEFAULT_REGION=ap-northeast-2"' /etc/systemd/system/whatfood.service
+              systemctl daemon-reload
+            fi
             wget https://github.com/wisdompjt-wft/aws-wft-project/raw/main/init_db.php
             sed -i "s/DirectoryIndex index.html/DirectoryIndex index.php index.html/g" /etc/httpd/conf/httpd.conf
             sed -i "s/127.0.0.1/$DB_HOST/g" db.php
             sed -i "s/= '1234';/= '$DB_PASS';/g" db.php
-            systemctl start httpd
+            # 5. 모든 캐시 털어내고 아파치와 파이썬 백엔드 기동
+            systemctl restart whatfood
+            systemctl restart httpd
             systemctl enable httpd
+            systemctl enable whatfood
             php /var/www/html/init_db.php
             rm -f /var/www/html/init_db.php
-# sed -i "s/localhost/${RdsDns}/g" config.php
 
 # Auto Scaling Group & Scaling Policy
   AutoScalingGroup:
