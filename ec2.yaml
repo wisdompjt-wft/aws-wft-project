@@ -152,7 +152,7 @@ Resources:
                 Resource:
                   - !Sub arn:aws:ssm:${RdsRegion}:${AWS::AccountId}:parameter/db_password
                   - !Sub arn:aws:ssm:${RdsRegion}:${AWS::AccountId}:parameter/db_host
-									- !Sub arn:aws:ssm:${RdsRegion}:${AWS::AccountId}:parameter/wft-api-key
+                  - !Sub arn:aws:ssm:${RdsRegion}:${AWS::AccountId}:parameter/wft-api-key
 
   WebInstanceProfile:
     Type: AWS::IAM::InstanceProfile
