@@ -134,7 +134,7 @@ Resources:
     Type: AWS::SSM::Parameter
     Condition: Seoul
     Properties:
-      Name: /wft/rds/endpoint
+      Name: db_host
       Type: String
       Value: !GetAtt DBInstance.Endpoint.Address
 
