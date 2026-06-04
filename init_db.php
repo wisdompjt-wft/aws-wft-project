@@ -8,7 +8,7 @@ try {
     $createTablesSql = <<<SQL
         CREATE TABLE IF NOT EXISTS stores (
             store_id INT AUTO_INCREMENT PRIMARY KEY,
-            store_name VARCHAR(30) NOT NULL,
+            store_name VARCHAR(30) NOT NULL UNIQUE,
             store_menu_url VARCHAR(150) NOT NULL,
             location VARCHAR(1000) NOT NULL,
             ggultip TEXT NULL
