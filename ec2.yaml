@@ -35,10 +35,9 @@ Mappings:
       WebSn4Cidr: 172.17.4.0/24
   AmiMap:
     ap-northeast-2:
-      # 💡 [필독수정] 본인이 수동으로 최종 성공시킨 후 구워낸 AMI ID를 여기에 넣으세요!
-      Ami: ami-054b40a72f40ad9b3
+      Ami: ami-0bfe2cc5319ec4eb3
     ap-northeast-1:
-      Ami: ami-0cfcf03a463783e35
+      Ami: ami-05ed6c207c188fd81
 
 Resources:
 # Web Application Load Balancer & Security Group
