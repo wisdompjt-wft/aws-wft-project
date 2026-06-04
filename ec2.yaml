@@ -151,7 +151,8 @@ Resources:
                   - ssm:GetParameter
                 Resource:
                   - !Sub arn:aws:ssm:${RdsRegion}:${AWS::AccountId}:parameter/db_password
-                  - !Sub arn:aws:ssm:${RdsRegion}:${AWS::AccountId}:parameter/wft/rds/endpoint
+                  - !Sub arn:aws:ssm:${RdsRegion}:${AWS::AccountId}:parameter/db_host
+									- !Sub arn:aws:ssm:${RdsRegion}:${AWS::AccountId}:parameter/wft-api-key
 
   WebInstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -177,6 +178,12 @@ Resources:
         UserData:
           Fn::Base64: !Sub |
             #!/bin/bash
+            DB_HOST=$(aws ssm get-parameter --name "db_host" --query "Parameter.Value" --output text --region ${RdsRegion})
+            DB_PASS=$(aws ssm get-parameter --name "db_password" --with-decryption --query "Parameter.Value" --output text --region ${RdsRegion})
+            echo "DB_HOST=$DB_HOST" > /var/www/db_config.ini
+            echo "DB_PASSWORD=$DB_PASS" >> /var/www/db_config.ini
+            chmod 600 /var/www/db_config.ini
+            chown apache:apache /var/www/db_config.ini
             wget https://github.com/wisdompjt-wft/aws-wft-project/raw/main/init_db.php
             sed -i "s/DirectoryIndex index.html/DirectoryIndex index.php index.html/g" /etc/httpd/conf/httpd.conf
             sed -i "s/127.0.0.1/${RDS_ENDPOINT}/g" db.php
