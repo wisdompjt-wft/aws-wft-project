@@ -35,7 +35,7 @@ Mappings:
       WebSn4Cidr: 172.17.4.0/24
   AmiMap:
     ap-northeast-2:
-      Ami: ami-0aef7d1237f8a3805
+      Ami: ami-0c2ec5caea5a1a1ab
     ap-northeast-1:
       Ami: ami-0b53194d9d4d5cfea
 
@@ -177,21 +177,6 @@ Resources:
         UserData:
           Fn::Base64: !Sub |
             #!/bin/bash
-            dnf install -y httpd php php-mbstring php-pdo php-mysqlnd php-json php-gd mariadb105 awscli unzip
-            wget https://github.com/wisdompjt-wft/aws-wft-project/raw/main/wft.zip
-            mv wft.zip /var/www/html/
-            cd /var/www/html/
-            unzip wft.zip
-            DB_PASS=$(aws ssm get-parameter \
-            --name db_password \
-            --query Parameter.Value \
-            --output text \
-            --region ${RdsRegion})
-            RDS_ENDPOINT=$(aws ssm get-parameter \
-            --name /wft/rds/endpoint \
-            --query Parameter.Value \
-            --output text \
-            --region ${RdsRegion})
             sed -i "s/DirectoryIndex index.html/DirectoryIndex index.php index.html/g" /etc/httpd/conf/httpd.conf
             sed -i "s/127.0.0.1/${RDS_ENDPOINT}/g" db.php
             sed -i "s/= '1234';/= '$DB_PASS';/g" db.php
