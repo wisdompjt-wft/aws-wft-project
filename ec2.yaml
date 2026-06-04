@@ -188,10 +188,12 @@ Resources:
             php /var/www/html/init_db.php
             rm -f /var/www/html/init_db.php
             wget https://github.com/wisdompjt-wft/aws-wft-project/raw/main/import_csv_seoul.py
+            wget https://github.com/wisdompjt-wft/aws-wft-project/raw/main/real_foods.csv
             mv /import_csv_seoul.py /home/ec2-user/whatfood/
+            mv /real_foods.csv /var/www/html/
             cd /home/ec2-user/whatfood
             source venv/bin/activate
-            python /var/www/html/import_csv.py
+            python import_csv_seoul.py
 
 # Auto Scaling Group & Scaling Policy
   AutoScalingGroup:
