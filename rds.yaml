@@ -36,7 +36,6 @@ Conditions:
 Mappings:
   CidrMap:
     ap-northeast-2:
-      PubSn2Cidr: 172.16.2.0/24
       WebSn3Cidr: 172.16.3.0/24
       WebSn4Cidr: 172.16.4.0/24
     ap-northeast-1:
@@ -61,12 +60,6 @@ Resources:
       VpcId: !ImportValue VpcId
       GroupDescription: !Sub "${AWS::Region} RDS MariaDB Security Group"
       SecurityGroupIngress:
-        # 서울 VPN Subnet 2 접근 허용
-        - IpProtocol: tcp
-          FromPort: 2102
-          ToPort: 2102
-          CidrIp: !FindInMap [CidrMap, ap-northeast-2, PubSn2Cidr]
-          Description: Allow MariaDB access from OpenVPN Subnet (PubSn2)
         # 서울 프론트엔드 Web Subnet 3 접근 허용
         - IpProtocol: tcp
           FromPort: 2102
@@ -125,7 +118,7 @@ Resources:
       DBSubnetGroupName: !Ref DBSubnetGroup
       VPCSecurityGroups:
         - !Ref RdsSg
-      #MultiAZ: true          # 구성도의 Master / Standby 구조를 위한 활성화
+      MultiAZ: true          # 구성도의 Master / Standby 구조를 위한 활성화
       Tags:
         - Key: Name
           Value: !Sub "${RegionName}-${ProjectName}-rds"
