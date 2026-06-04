@@ -152,7 +152,7 @@ Resources:
         SecurityGroupIds:
           - !Ref WebSg
         UserData:
-          # 💡 [해결] 꼬여있던 기존 sed 치환 코드를 완전히 제거하여 RDS_ENDPOINT 의존성 에러를 완벽히 해결했습니다!
+          # [해결] 꼬여있던 기존 sed 치환 코드를 완전히 제거하여 RDS_ENDPOINT 의존성 에러를 완벽히 해결했습니다!
           Fn::Base64: !Sub |
             #!/bin/bash
             # 1. SSM 파라미터 스토어에서 내 맞춤형 구조(db_host, db_password) 실시간 동기화
@@ -189,7 +189,7 @@ Resources:
               php /var/www/html/init_db.php
               rm -f /var/www/html/init_db.php
               
-              # 💡 [보안/개선] 각 파일이 위치해야 할 절대 경로로 직접 다운로드 처리 (-O 옵션 활용)
+              # [보안/개선] 각 파일이 위치해야 할 절대 경로로 직접 다운로드 처리 (-O 옵션 활용)
               wget https://github.com/wisdompjt-wft/aws-wft-project/raw/main/import_csv_seoul.py -O /home/ec2-user/whatfood/import_csv_seoul.py
               wget https://github.com/wisdompjt-wft/aws-wft-project/raw/main/real_foods.csv -O /var/www/html/real_foods.csv
               
