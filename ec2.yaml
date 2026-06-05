@@ -35,9 +35,9 @@ Mappings:
       WebSn4Cidr: 172.17.4.0/24
   AmiMap:
     ap-northeast-2:
-      Ami: ami-054b40a72f40ad9b3
+      Ami: ami-001d142673090e8df
     ap-northeast-1:
-      Ami: ami-0cfcf03a463783e35
+      Ami: ami-0a6c0d78f7893d7d6
 
 Resources:
 # Web Application Load Balancer & Security Group
