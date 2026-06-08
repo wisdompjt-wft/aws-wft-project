@@ -1,0 +1,132 @@
+1. IAM 생성
+AWS 콘솔에서 IAM을 검색후 이동
+왼쪽 메뉴에서 [정책 (Policies)] -> [정책 생성 (Create policy)]을 클릭
+우측 상단의 [JSON] 탭을 클릭하고, 기존 내용을 모두 지운 뒤 아래 코드를 붙여넣기
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "autoscaling:SuspendProcesses",
+                "autoscaling:ResumeProcesses",
+                "ec2:StopInstances",
+                "ec2:StartInstances",
+                "ec2:DescribeInstances"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+
+맨 아래 [다음 (Next)]을 누르고, 정책 이름에 EC2-ASG-Scheduler-Policy라고 입력한 뒤 [정책 생성]을 완료
+왼쪽 메뉴에서 [역할 (Roles)] -> [역할 생성 (Create role)]을 클릭
+신뢰할 수 있는 엔티티 유형은 [AWS 서비스], 서비스는 [Lambda]를 선택하고 [다음] 클릭
+권한 정책 검색창에 방금 만든 EC2-ASG-Scheduler-Policy를 검색해 체크하고,
+기본 로그 생성을 위해 AWSLambdaBasicExecutionRole도 함께 검색해서 체크 (총 2개 선택) 후 [다음]을 클릭
+역할 이름에 EC2-ASG-Scheduler-Role을 입력하고 [역할 생성]을 완료
+
+2. Lambda 함수 생성 및 코드 작성
+AWS 콘솔에서 Lambda를 검색후 이동
+[함수 생성 (Create function)]을 클릭
+기본 설정을 다음과 같이 입력:
+함수 이름: webserver-time-scheduler
+런타임: Python 3.12 (또는 최신 버전)
+기본 실행 역할 변경 클릭: '기존 역할 사용'을 선택하고, 1단계에서 만든 EC2-ASG-Scheduler-Role을 선택
+맨 아래 [함수 생성] 클릭
+소스 코드 영역(lambda_function.py)에 아래 코드를 복사해서 붙여넣기
+-------------이 아래 코드-------------
+import json
+import boto3
+
+def lambda_handler(event, context):
+    # [필수 수정] 본인의 실제 ASG 이름과 EC2 인스턴스 ID로 변경하세요!
+    asg_name = "seoul-wft-asg"
+    instance_ids = ["i-0c26feb01ee718e71", "i-006f529a80e520742"]
+
+    asg_client = boto3.client('autoscaling')
+    ec2_client = boto3.client('ec2')
+
+    # EventBridge가 던져줄 명령어(stop 또는 start)를 받습니다. 기본값은 stop입니다.
+    action = event.get('action', 'stop')
+
+    if action == 'stop':
+        # 1. ASG의 감시 및 자동 대체 기능 기절시키기
+        asg_client.suspend_processes(
+            AutoScalingGroupName=asg_name,  # 🚨 [수정 완료] '가게이름-asg' -> 변수명으로 변경
+            ScalingProcesses=['HealthCheck', 'ReplaceUnhealthy']
+        )
+        print(f"[{asg_name}] ASG 감시 프로세스를 중지했습니다.")
+
+        # 2. 기존 웹서버 전원 끄기
+        ec2_client.stop_instances(InstanceIds=instance_ids)
+        print(f"{instance_ids} 기존 웹서버 전원을 켰습니다.")
+
+    elif action == 'start':
+        # 1. 기존 웹서버 전원 다시 켜기
+        ec2_client.start_instances(InstanceIds=instance_ids)
+        print(f"{instance_ids} 기존 웹서버 전원을 켰습니다.")
+
+        # 2. 깨어난 서버를 ASG가 다시 감시하도록 재개하기
+        asg_client.resume_processes(
+            AutoScalingGroupName=asg_name,
+            ScalingProcesses=['Launch', 'Terminate', 'HealthCheck', 'ReplaceUnhealthy'] # 🚨 [수정 완료] ScaledProcesses -> ScalingProcesses 오타 수정
+        )
+        print(f"[{asg_name}] ASG 감시 프로세스를 재개했습니다.")
+
+    return {
+        'statusCode': 200,
+        'body': json.dumps(f"Webserver {action} task completed successfully!")
+
+    }
+---------------------------------------
+코드 수정 후 상단의 [Deploy] 버튼을 반드시 눌러서 반영
+[설정(Configuration)] 탭 -> [일반 설정(General configuration)] -> [편집(Edit)]으로 이동후
+제한 시간(Timeout)을 기존 3초에서 15초로 늘려주고 저장 (EC2 제어 API는 간혹 3초 이상 걸릴 수 있음)
+
+3. Amazon EventBridge로 스케줄 등록하기 (규칙 2개)
+
+규칙 1: 오후 3시 서버 종료 규칙
+AWS 콘솔에서 Amazon EventBridge를 검색하여 이동
+오른쪽 메뉴에서 [규칙 (Rules)] -> [규칙 생성 (Create rule)]을 클릭
+이름: webserver-stop-rule 입력 후, 규칙 유형을 [일정 (Schedule)]로 선택하고 [다음] 클릭
+
+일정 패턴에서 [국제 표준시(UTC)로 실행되는 특정 시간에 실행되는 크론 기반 일정]을 선택
+
+크론 표현식 입력: 매일 오후 3시(KST)는 UTC 기준으로 오후 2시입니다.
+0 6 * * MON-FRI * 입력 (입력하면 하단에 현지 시간 기준으로 매일 23:00 실행 예정이라고 친절하게 뜸) 후
+[다음] 클릭
+
+대상 선택 화면에서:
+
+대상 유형: AWS 서비스
+대상 선택: Lambda 함수
+함수: 2단계에서 만든 webserver-time-scheduler 선택
+[★가장 중요] 추가 설정(Additional settings) 메뉴를 펼칩니다.
+대상 입력 구성(Configure target input): 상수(JSON 텍스트)를 선택
+아래 입력창에 딱 이 한 줄만 적어줍니다:
+
+{"action": "stop"}
+
+[다음] -> [다음] -> [규칙 생성]을 누르면 종료 스케줄러가 완성
+
+규칙 2: 아침 8시 서버 가동 규칙
+다시 [규칙 생성 (Create rule)]을 클릭
+
+이름: webserver-start-rule 입력 후, 규칙 유형을 [일정]으로 선택하고 [다음] 클릭
+
+크론 표현식 입력: 매일 아침 8시(KST)는 UTC 기준으로 전날 밤 11시(23시)
+0 23 * * MON-FRI * 입력 (하단에 현지 시간 기준으로 매일 08:00 실행 예정인지 확인) 후 [다음] 클릭
+
+대상 선택 화면에서:
+
+대상 유형: AWS 서비스
+대상 선택: Lambda 함수
+함수: webserver-time-scheduler 선택
+추가 설정(Additional settings) 메뉴를 펼칩니다.
+대상 입력 구성: 상수(JSON 텍스트) 선택
+아래 입력창에 스타트 명령어를 적어줍니다:
+
+{"action": "start"}
+
+[다음] -> [다음] -> [규칙 생성]을 누르면 가동 스케줄러까지 완성
