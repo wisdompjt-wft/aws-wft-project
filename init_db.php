@@ -36,7 +36,7 @@ SQL;
 
     // 3. 데이터 중복 삽입 방지 로직 (최초 1회 실행)
     // 외래키(FOREIGN KEY) 제약 조건 때문에 데이터가 정상적으로 들어갔는지 foods 테이블을 기준으로 확인합니다.
-    $stmt = $pdo->query("SELECT COUNT(*) FROM foods");
+    $stmt = $pdo->query("SELECT COUNT(*) FROM stores");
     $count = $stmt->fetchColumn();
 
     if ($count == 0) {
