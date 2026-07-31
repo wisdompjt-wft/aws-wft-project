@@ -4,7 +4,7 @@
 > [!NOTE]
 > 프로젝트 로고: <img width="125" height="125" alt="무슨팀 로고" src="https://github.com/user-attachments/assets/b231a04d-f56a-4e97-9e74-390f6ea0200d" />
 
-> **프로젝트 기간:** 2026.06.08 ~ 2026.06.12 / **난이도:** ★★★☆☆
+> **프로젝트 기간:** 2026.05.18 ~ 2026.06.05 / **난이도:** ★★★☆☆
 
 ## 프로젝트 구성도
 <img width="1583" height="1608" alt="AWS구성도_최종완성본" src="https://github.com/user-attachments/assets/f3eadd54-4d51-4cee-a048-f9c2ca70cc12" />
